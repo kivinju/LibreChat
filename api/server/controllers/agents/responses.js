@@ -345,7 +345,7 @@ const createResponse = async (req, res) => {
 
     // Build allowed providers set
     const allowedProviders = new Set(
-      req.config?.endpoints?.[EModelEndpoint.agents]?.allowedProviders,
+      appConfig?.endpoints?.[EModelEndpoint.agents]?.allowedProviders,
     );
 
     // Create tool loader
@@ -557,6 +557,16 @@ const createResponse = async (req, res) => {
       indexTokenCountMap = primeResult.indexTokenCountMap;
     }
 
+    /* Stable for the turn: the capability set is the admin config, and
+       the prime lists are fixed once `initializeAgent` resolves. Hoisted
+       here so both the streaming and non-streaming `loadTools` closures
+       below read the same values without recomputing per tool execution. */
+    const codeEnvAvailable = enabledCapabilities.has(AgentCapabilities.execute_code);
+    const skillPrimedIdsByName = buildSkillPrimedIdsByName(
+      manualSkillPrimes,
+      alwaysApplySkillPrimes,
+    );
+
     // Create tracker for streaming or aggregator for non-streaming
     const tracker = actuallyStreaming ? createResponseTracker() : null;
     const aggregator = actuallyStreaming ? null : createResponseAggregator();
@@ -614,11 +624,8 @@ const createResponse = async (req, res) => {
             result,
             req,
             primaryConfig.accessibleSkillIds,
-            enabledCapabilities.has(AgentCapabilities.execute_code),
-            buildSkillPrimedIdsByName(
-              primaryConfig.manualSkillPrimes,
-              primaryConfig.alwaysApplySkillPrimes,
-            ),
+            codeEnvAvailable,
+            skillPrimedIdsByName,
           );
         },
         toolEndCallback,
@@ -665,7 +672,7 @@ const createResponse = async (req, res) => {
         initialSummary,
         runId: responseId,
         summarizationConfig,
-        appConfig: req.config,
+        appConfig,
         signal: abortController.signal,
         customHandlers: handlers,
         requestBody: {
@@ -706,8 +713,8 @@ const createResponse = async (req, res) => {
       });
 
       // Record token usage against balance
-      const balanceConfig = getBalanceConfig(req.config);
-      const transactionsConfig = getTransactionsConfig(req.config);
+      const balanceConfig = getBalanceConfig(appConfig);
+      const transactionsConfig = getTransactionsConfig(appConfig);
       recordCollectedUsage(
         {
           spendTokens: db.spendTokens,
@@ -793,11 +800,8 @@ const createResponse = async (req, res) => {
             result,
             req,
             primaryConfig.accessibleSkillIds,
-            enabledCapabilities.has(AgentCapabilities.execute_code),
-            buildSkillPrimedIdsByName(
-              primaryConfig.manualSkillPrimes,
-              primaryConfig.alwaysApplySkillPrimes,
-            ),
+            codeEnvAvailable,
+            skillPrimedIdsByName,
           );
         },
         toolEndCallback,
@@ -842,7 +846,7 @@ const createResponse = async (req, res) => {
         initialSummary,
         runId: responseId,
         summarizationConfig,
-        appConfig: req.config,
+        appConfig,
         signal: abortController.signal,
         customHandlers: handlers,
         requestBody: {
@@ -882,8 +886,8 @@ const createResponse = async (req, res) => {
       });
 
       // Record token usage against balance
-      const balanceConfig = getBalanceConfig(req.config);
-      const transactionsConfig = getTransactionsConfig(req.config);
+      const balanceConfig = getBalanceConfig(appConfig);
+      const transactionsConfig = getTransactionsConfig(appConfig);
       recordCollectedUsage(
         {
           spendTokens: db.spendTokens,
